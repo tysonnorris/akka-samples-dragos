@@ -27,8 +27,7 @@
     }
   },
   "env": {
-    "AKKA_CLUSTER_DISCOVERY_URL": "http://192.168.99.100:8080/v2/apps/akka-cluster/tasks",
-    "LIBPROCESS_IP": "192.168.99.100"
+    "AKKA_CLUSTER_DISCOVERY_URL": "http://192.168.99.100:8080/v2/apps/akka-cluster/tasks"
   },
   "healthChecks": [
     {
