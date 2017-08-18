@@ -1,9 +1,10 @@
 package sample.cluster.mesos
 
+import akka.actor.Address
 import java.io.File
 import java.net.URL
-
 import com.typesafe.config._
+import collection.JavaConverters._
 
 /**
   * This object discovers seed nodes for the Akka Cluster using Marathon API
@@ -58,7 +59,7 @@ object MarathonConfig {
     *
     * @return an array of strings with akka.tcp://{cluster-name}@{IP}:{PORT}
     */
-  def getSeedNodes(): Seq[String] = {
+  def getSeedNodes(): Seq[Address] = {
     val url: String = config.getString("akka.cluster.discovery.url")
     val portIndex: Int = config.getInt("akka.cluster.discovery.port-index")
     val clusterName: String = config.getString("akka.cluster.name")
@@ -75,14 +76,43 @@ object MarathonConfig {
         .parseFileAnySyntax(new File(url))
         .resolve()
     }
+    var notHealthyTasks = unhealthyTasks(tmpCfg)
 
-    var seq: Seq[String] = Seq()
+    while (notHealthyTasks.size != 0) {
+        val unhealthyTaskIds = notHealthyTasks.map(t => t.getString("id"))
+        System.out.println(s"found ${notHealthyTasks.size} unhealthy tasks (${unhealthyTaskIds}), will try again in 5s")
+        System.out.println()
+        Thread.sleep(5000)
+        if (url.startsWith("http")) {
+            tmpCfg = ConfigFactory
+                    .parseURL(new URL(url),
+                        ConfigParseOptions.defaults().setSyntax(ConfigSyntax.JSON))
+                    .resolve()
+        } else {
+            tmpCfg = ConfigFactory
+                    .parseFileAnySyntax(new File(url))
+                    .resolve()
+        }
+        notHealthyTasks = unhealthyTasks(tmpCfg)
+    }
+
+    System.out.println(s"can start cluster now that all ${tmpCfg.getConfigList("tasks").size()} tasks are healthy")
+
+    var seq: Seq[Address] = Seq()
     tmpCfg.getConfigList("tasks").forEach(
       (item: Config) =>
-        seq = seq :+ ("akka.tcp://%s@%s:%s" format(clusterName, item.getString("host"), item.getIntList("ports").get(portIndex).toString)))
+        //seq = seq :+ ("akka.tcp://%s@%s:%s" format(clusterName, item.getString("host"), item.getIntList("ports").get(portIndex).toString)))
+          seq = seq :+ Address("akka.tcp", clusterName, item.getString("host"), item.getIntList("ports").get(portIndex)))
+      //for testing, case the first task to commit suicide
+//    if (tmpCfg.getConfigList("tasks").get(0).getString("id") == System.getenv("MESOS_TASK_ID")){
+//        System.out.println("THIS IS THE FIRST MARATHON TASK, COMMITTING SUICIDE")
+//        Thread.sleep(5000)
+//        System.exit(129)
+//    }
 
     seq
   }
+  private def unhealthyTasks(tmpCfg:Config) = tmpCfg.getConfigList("tasks").asScala.filter( t => t.hasPath("healthCheckResults") == false || t.getConfigList("healthCheckResults").get(0).getBoolean("alive") == false)
 
   /**
     * Returns the private IP address associated with the docker container
@@ -104,9 +134,10 @@ object MarathonConfig {
 
   def discoverAkkaConfig(): Config = {
 
-    val seedNodes = getSeedNodes().map { address =>
-      s"""akka.cluster.seed-nodes += "$address""""
-    }.mkString("\n")
+//    val seedNodes = getSeedNodes().map { address =>
+//      s"""akka.cluster.seed-nodes += "$address""""
+//    }.mkString("\n")
+    val seedNodes = ""
 
     val privateDockerContainerAddress: String = getDockerPrivateAddress
 

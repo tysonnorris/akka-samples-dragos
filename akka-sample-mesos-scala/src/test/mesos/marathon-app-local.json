@@ -30,12 +30,14 @@
     "AKKA_CLUSTER_DISCOVERY_URL": "http://192.168.99.100:8080/v2/apps/akka-cluster/tasks",
     "LIBPROCESS_IP": "192.168.99.100"
   },
-  "portDefinitions": [
+  "healthChecks": [
     {
-      "port": 10000,
-      "protocol": "tcp",
-      "name": "2551",
-      "labels": {}
+      "protocol": "TCP",
+      "gracePeriodSeconds": 25,
+      "intervalSeconds": 5,
+      "portIndex": 0,
+      "timeoutSeconds": 5,
+      "maxConsecutiveFailures": 3
     }
   ]
 }
